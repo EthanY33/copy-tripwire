@@ -1,0 +1,38 @@
+{
+  "name": "copy-tripwire",
+  "version": "0.1.0",
+  "description": "Pattern-checker for marketing copy — catches AI-default tells (banned phrases, em-dash overdose, fabricated roadmap items, over-bulleting). Sibling to trailer-tripwire and screenshot-tripwire.",
+  "license": "MIT",
+  "author": "Ethan Yucetepe",
+  "type": "module",
+  "main": "lib/audit.mjs",
+  "bin": {
+    "copy-tripwire": "bin/cli.mjs",
+    "ct": "bin/cli.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/audit.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EthanY33/copy-tripwire.git"
+  },
+  "keywords": [
+    "marketing",
+    "copy",
+    "audit",
+    "pre-commit",
+    "indie",
+    "gamedev",
+    "ai-detection"
+  ]
+}
