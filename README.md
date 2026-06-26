@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/social.png" alt="copy-tripwire" width="100%"></p>
+
 # copy-tripwire
 
 Pattern-checker for marketing copy. Sibling to [`trailer-tripwire`](https://github.com/EthanY33/trailer-tripwire) and [`screenshot-tripwire`](https://github.com/EthanY33/screenshot-tripwire). Catches measurable AI-default tells before they ship: overused phrases ("delve", "tapestry", "supercharge"), em-dash overdose, fabricated roadmap items, over-bulleting.
@@ -6,7 +8,7 @@ This is a **pattern checker**, not a taste checker. It catches mistakes; it does
 
 ## Why
 
-AI-assisted prose drifts toward a recognisable house style: heavy em-dashes, "supercharge your workflow", "delve into the inner workings", "we're working on more zones, coming soon". Each tell is small. Together they make a launch-page reek of copy-paste output and erode trust with the audiences you most need to keep — recruiters, store browsers, fellow developers. This tool fails the build before that copy hits production.
+AI-assisted prose drifts toward a recognisable house style: heavy em-dashes, "supercharge your workflow", "delve into the inner workings", "we're working on more zones, coming soon". Each tell is small. Together they make a launch-page reek of copy-paste output and erode trust with the audiences you most need to keep: recruiters, store browsers, fellow developers. This tool fails the build before that copy hits production.
 
 ## Install
 
@@ -86,7 +88,7 @@ Exit codes: `0` if no CRITICAL findings, `2` if any CRITICAL.
 | unlock the power of | AI cliche |
 | harness the power | AI cliche |
 
-Edit `lib/audit.mjs` to add or remove entries for your project. Each entry is `{ pattern, hint }` — `pattern` is a JS regex source, `hint` is the message shown in the deny output.
+Edit `lib/audit.mjs` to add or remove entries for your project. Each entry is `{ pattern, hint }`. `pattern` is a JS regex source, `hint` is the message shown in the deny output.
 
 ### Roadmap markers
 
@@ -105,7 +107,7 @@ These don't always indicate a fabricated commitment, so they're WARN not CRITICA
 ### Why text extraction matters
 
 - HTML `<script>` and `<style>` bodies are stripped before phrase matching, so a banned phrase appearing in a CSS class name or JS string literal does NOT trip the audit.
-- Markdown fenced code blocks (`` ``` ``) and inline code (`` ` ``) are stripped — code samples can use any phrase without tripping the prose audit.
+- Markdown fenced code blocks (`` ``` ``) and inline code (`` ` ``) are stripped, so code samples can use any phrase without tripping the prose audit.
 - HTML tags are stripped to prose before word-counting, so density metrics reflect what readers see, not the markup.
 
 ## File handling
@@ -121,7 +123,7 @@ Auto-detected by extension and content sniffing:
 
 The `install-hooks` command writes a `.git/hooks/pre-commit` that audits any staged `.md` / `.html` / `.htm` / `.txt` files under `brand/goneidle-landing/` and blocks the commit on any CRITICAL finding.
 
-The hook is marked with `# copy-tripwire:v1` and is **idempotent** — re-running the installer replaces its own hook. It also **composes with** `# trailer-tripwire:v1` and `# screenshot-tripwire:v1` if either is already present (all three run on commit). It **refuses to overwrite** an unrelated pre-commit hook.
+The hook is marked with `# copy-tripwire:v1` and is **idempotent** (re-running the installer replaces its own hook). It also **composes with** `# trailer-tripwire:v1` and `# screenshot-tripwire:v1` if either is already present (all three run on commit). It **refuses to overwrite** an unrelated pre-commit hook.
 
 If a `brand/goneidle-landing/version.json` exists in the repo, the pre-commit hook reads it automatically and uses its `patchHistory[].version` (or `versions[]`, or root-array, or top-level `version`) for `UNLISTED_VERSION` detection.
 
@@ -134,13 +136,13 @@ Heuristics live in `lib/audit.mjs`. Tune thresholds when:
 - A bad phrase slips through → add to the banned list with a hint
 - The em-dash / bullet density triggers on legit copy → raise the threshold via `--max-em-dash N` / `--max-bullets N` or change the default
 
-The thresholds are defaults from a small calibration set — yours may differ.
+The thresholds are defaults from a small calibration set. Yours may differ.
 
 ## Roadmap
 
 Items I'd add only if a real failure case appears:
 
-- Sentiment / tone audit (currently out of scope — the tool is pattern-only)
+- Sentiment / tone audit (currently out of scope; the tool is pattern-only)
 - Reading-level check (Flesch-Kincaid or similar)
 - Trademark / brand-voice deviations (project-specific lexicons)
 - "AI-watermark" pattern matching beyond phrase list (sentence-shape statistics)
@@ -148,4 +150,4 @@ Items I'd add only if a real failure case appears:
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
