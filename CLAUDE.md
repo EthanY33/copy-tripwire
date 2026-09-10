@@ -9,7 +9,7 @@ Layout: `bin/cli.mjs` is a thin dispatcher; subcommands live in `lib/audit.mjs`,
 ```
 npx copy-tripwire audit <files...>          # exit 2 on CRITICAL
 npx copy-tripwire audit --json <files...>   # machine-readable
-npx copy-tripwire check                     # audit staged .md/.html/.txt under brand/goneidle-landing/ ONLY (path hardcoded in lib/check.mjs)
+npx copy-tripwire check                     # audit staged .md/.html/.htm/.txt under brand/goneidle-landing/ ONLY (path hardcoded in lib/check.mjs)
 npx copy-tripwire install-hooks             # idempotent pre-commit hook
 npx ct audit <files...>                     # short alias
 npm test                                    # node --test test/audit.test.mjs (CI: Node 18/20/22 on ubuntu+windows)
