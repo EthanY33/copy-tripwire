@@ -79,6 +79,42 @@ test("check works from a subdirectory", () => {
   git(root, "add", rel);
   const r = check(root, path.join(root, DIR));
   assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /BANNED_PHRASE/);
+  assert.doesNotMatch(r.out, /AUDIT_FAIL|ENOENT/);
+});
+
+test("check passes clean staged copy from a subdirectory", () => {
+  const root = makeRepo();
+  const rel = `${DIR}/post.md`;
+  write(root, rel, CLEAN);
+  git(root, "add", rel);
+  const r = check(root, path.join(root, DIR));
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /ok/);
+});
+
+test("check fails closed on an empty version set (copy-tripwire-06)", () => {
+  const root = makeRepo();
+  write(root, `${DIR}/version.json`, JSON.stringify({ patchHistory: [] }));
+  write(root, `${DIR}/post.md`, "TideWane v9.9.9 ships today.\n");
+  git(root, "add", `${DIR}/version.json`, `${DIR}/post.md`);
+  const r = check(root);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /UNLISTED_VERSION/);
+  const a = spawnSync(process.execPath, [CLI, "audit", "--patch-history", `${DIR}/version.json`, `${DIR}/post.md`], { cwd: root, encoding: "utf8" });
+  assert.equal(a.status, 2, a.stdout + a.stderr);
+});
+
+test("check fails closed on UTF-16 copy (decode failure)", () => {
+  const root = makeRepo();
+  const rel = `${DIR}/post.txt`;
+  const buf = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("Let us delve into the tapestry.", "utf16le")]);
+  mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+  writeFileSync(path.join(root, rel), buf);
+  git(root, "add", rel);
+  const r = check(root);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /AUDIT_FAIL/);
 });
 
 test("check audits staged files with non-ASCII names (copy-tripwire-04, tripwire-family-09)", () => {
