@@ -5,10 +5,10 @@ Node CLI pre-commit gate catching AI-default patterns in marketing prose. Siblin
 ## Commands
 ```
 npx copy-tripwire audit [--json] <files...>  # exit 2 on CRITICAL
-npx copy-tripwire check                      # staged .md/.html/.htm/.txt under brand/goneidle-landing/ ONLY (hardcoded in lib/check.mjs)
+npx copy-tripwire check                      # staged blobs (index content, not working tree) of .md/.html/.htm/.txt under brand/goneidle-landing/ ONLY (hardcoded in lib/check.mjs)
 npx copy-tripwire install-hooks              # idempotent pre-commit hook
 npx ct ...                                   # alias
-npm test                                     # node --test test/audit.test.mjs (CI: Node 18/20/22, ubuntu+windows)
+npm test                                     # node --test test/audit.test.mjs test/check.test.mjs  (CI: Node 18/20/22, ubuntu+windows)
 ```
 Flags: `--max-em-dash N`, `--max-bullets N`, `--patch-history path/to/version.json`.
 
