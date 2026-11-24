@@ -69,7 +69,7 @@ Exit codes: `0` if no CRITICAL findings, `2` if any CRITICAL.
 | `OVER_BULLETED` | WARN | More bullet items per 100 words than threshold (default 8); counts both Markdown and HTML `<li>` |
 | `ROADMAP_PHRASE` | WARN | Future-tense roadmap markers ("coming soon", "we're working on", "in development", etc.) |
 | `EMPTY_FILE` | WARN | 0-byte file |
-| `AUDIT_FAIL` | CRITICAL | Internal error parsing the file |
+| `AUDIT_FAIL` | CRITICAL | The file could not be audited (unreadable, or not decodable as text) |
 
 ### Banned phrase list
 
@@ -118,6 +118,8 @@ Auto-detected by extension and content sniffing:
 - everything else → plain text
 
 `.txt`, `.rtf`-as-text, and unknown extensions go through the plain-text path: no extraction, just direct phrase matching.
+
+Encoding: `audit` reads files as UTF-8 (a byte-order mark is ignored) and also decodes UTF-16 that starts with a byte-order mark. `check` reads staged files as UTF-8 only. Anything else (UTF-16 without a mark, Windows-1252, binary) is a CRITICAL `AUDIT_FAIL`, never a clean result on garbled text.
 
 ## Pre-commit hook
 

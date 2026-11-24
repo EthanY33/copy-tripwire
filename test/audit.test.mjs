@@ -5,11 +5,15 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { auditFile } from "../lib/audit.mjs";
+
+const AUDIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "lib", "audit.mjs");
 
 let TMP;
 test("setup", async () => { TMP = await mkdtemp(path.join(tmpdir(), "ct-test-")); });
@@ -19,6 +23,11 @@ async function fixture(name, content) {
   const fp = path.join(TMP, name);
   await writeFile(fp, content);
   return fp;
+}
+// Run lib/audit.mjs as a CLI, cwd = the fixture dir.
+function runAudit(...args) {
+  const r = spawnSync(process.execPath, [AUDIT, ...args], { cwd: TMP, encoding: "utf8" });
+  return { code: r.status, out: r.stdout + r.stderr };
 }
 
 // --- BANNED_PHRASE ---------------------------------------------------------
@@ -173,6 +182,71 @@ test("clean prose returns no CRITICAL findings", async () => {
   const r = await auditFile(fp);
   const criticals = r.findings.filter(f => f.level === "CRITICAL");
   assert.equal(criticals.length, 0, JSON.stringify(criticals));
+});
+
+// --- Encoding (copy-tripwire-05) -------------------------------------------
+
+const TELLS = "Let us delve into the tapestry.";
+const utf16le = s => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(s, "utf16le")]);
+const utf16be = s => Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(s, "utf16le").swap16()]);
+
+test("UTF-16LE file with a BOM is decoded and audited (copy-tripwire-05)", async () => {
+  const fp = await fixture("u16le.md", utf16le(TELLS));
+  const r = await auditFile(fp);
+  assert.equal(r.findings.filter(f => f.code === "BANNED_PHRASE").length, 2, JSON.stringify(r.findings));
+});
+
+test("UTF-16BE file with a BOM is decoded and audited (copy-tripwire-05)", async () => {
+  const fp = await fixture("u16be.md", utf16be(TELLS));
+  const r = await auditFile(fp);
+  assert.equal(r.findings.filter(f => f.code === "BANNED_PHRASE").length, 2, JSON.stringify(r.findings));
+});
+
+test("UTF-16 file keeps the version cross-check (copy-tripwire-05)", async () => {
+  const fp = await fixture("u16ver.md", utf16le("TideWane v9.9.9 ships today."));
+  const r = await auditFile(fp, { patchHistory: new Set(["1.0.0"]) });
+  assert.ok(findingCodes(r).includes("UNLISTED_VERSION"), JSON.stringify(r.findings));
+});
+
+test("UTF-8 file with a BOM audits like one without", async () => {
+  const fp = await fixture("u8bom.md", Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(TELLS, "utf8")]));
+  const r = await auditFile(fp);
+  assert.equal(r.findings.filter(f => f.code === "BANNED_PHRASE").length, 2, JSON.stringify(r.findings));
+  assert.equal(r.wordCount, 6);
+});
+
+test("UTF-16 without a BOM is AUDIT_FAIL, never a clean result (copy-tripwire-05)", async () => {
+  const fp = await fixture("u16nobom.md", Buffer.from(TELLS, "utf16le"));
+  const r = await auditFile(fp);
+  const fail = r.findings.find(f => f.code === "AUDIT_FAIL");
+  assert.ok(fail, JSON.stringify(r.findings));
+  assert.equal(fail.level, "CRITICAL");
+});
+
+test("invalid UTF-8 bytes are AUDIT_FAIL, never a clean result (copy-tripwire-05)", async () => {
+  // Windows-1252 "cafe" with an e-acute (0xE9) and a curly apostrophe (0x92).
+  const fp = await fixture("cp1252.txt", Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x20, 0x77, 0x65, 0x92, 0x72, 0x65]));
+  const r = await auditFile(fp);
+  const fail = r.findings.find(f => f.code === "AUDIT_FAIL");
+  assert.ok(fail, JSON.stringify(r.findings));
+  assert.equal(fail.level, "CRITICAL");
+});
+
+test("CLI exits 2 on UTF-16 copy with banned phrases (copy-tripwire-05)", async () => {
+  await fixture("cli-u16.md", utf16le(TELLS));
+  const r = runAudit("cli-u16.md");
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /BANNED_PHRASE/);
+});
+
+test("CLI exits 2 with AUDIT_FAIL on undecodable copy (copy-tripwire-05)", async () => {
+  await fixture("cli-u16nobom.md", Buffer.from("Clean copy here.", "utf16le"));
+  const r = runAudit("cli-u16nobom.md");
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /CRITICAL\s+AUDIT_FAIL/);
+  const j = JSON.parse(runAudit("--json", "cli-u16nobom.md").out);
+  assert.equal(j.totalCritical, 1);
+  assert.equal(j.reports[0].findings[0].code, "AUDIT_FAIL");
 });
 
 // --- teardown --------------------------------------------------------------

@@ -24,6 +24,7 @@ Banned-phrase and roadmap-marker lists: `lib/audit.mjs`, entries `{ pattern, hin
 
 ## Text extraction (do not regress; README documents it)
 Before phrase matching, strip Markdown fenced and inline code and HTML `<script>`/`<style>` bodies. Strip HTML tags before density word counts. A banned phrase in a CSS class or JS string must not trip.
+Encoding: `audit` decodes UTF-8 (BOM dropped) and BOM-marked UTF-16; `check` is UTF-8 only. Anything undecodable is `AUDIT_FAIL`, never a clean result.
 
 ## Scope
 - README Roadmap items (sentiment, reading level, brand-voice deviation, sentence-shape stats, Node API docs): add only when a real failure case appears.
