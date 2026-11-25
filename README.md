@@ -64,7 +64,7 @@ Exit codes: `0` if no CRITICAL findings, `2` if any CRITICAL.
 | Code | Level | Catches |
 |---|---|---|
 | `BANNED_PHRASE` | CRITICAL | One of the AI-overused phrase list (case-insensitive whole-word match) |
-| `UNLISTED_VERSION` | CRITICAL | A `vN.N.N` mention that's NOT in `--patch-history` JSON (cross-check). Skipped if no `--patch-history` provided. |
+| `UNLISTED_VERSION` | CRITICAL | A `vN.N.N` mention that's NOT in `--patch-history` JSON (cross-check). Skipped if no `--patch-history` provided. A leading `v` in the history is ignored, and `N.N` is read as `N.N.0` on both sides. |
 | `EM_DASH_DENSITY` | WARN | More em-dashes (U+2014) per 100 words than threshold (default 3) |
 | `OVER_BULLETED` | WARN | More bullet items per 100 words than threshold (default 8); counts both Markdown and HTML `<li>` |
 | `ROADMAP_PHRASE` | WARN | Future-tense roadmap markers ("coming soon", "we're working on", "in development", etc.) |

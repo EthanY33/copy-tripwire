@@ -167,6 +167,43 @@ test("UNLISTED_VERSION matches both 'v1.2.3' and 'version 1.2.3' forms", async (
   assert.match(r.findings.find(f => f.code === "UNLISTED_VERSION").msg, /v7\.7\.7/);
 });
 
+test("UNLISTED_VERSION accepts a history that stores a leading v (copy-tripwire-11)", async () => {
+  const fp = await fixture("vhist.md", "TideWane v1.2.2 ships today. Version 1.3.0 followed.");
+  const r = await auditFile(fp, { patchHistory: new Set(["v1.2.2", " V1.3.0 "]) });
+  assert.ok(!findingCodes(r).includes("UNLISTED_VERSION"), JSON.stringify(r.findings));
+});
+
+test("UNLISTED_VERSION still fires against a v-prefixed history (copy-tripwire-11)", async () => {
+  const fp = await fixture("vhist-unlisted.md", "TideWane v1.2.2 shipped, v9.9.9 is next.");
+  const r = await auditFile(fp, { patchHistory: new Set(["v1.2.2"]) });
+  const f = r.findings.find(x => x.code === "UNLISTED_VERSION");
+  assert.ok(f, JSON.stringify(r.findings));
+  assert.match(f.msg, /history: v9\.9\.9\. /);
+});
+
+test("UNLISTED_VERSION reads a two-part version as N.N.0 (copy-tripwire-11)", async () => {
+  const short = await fixture("twopart.md", "TideWane v1.2 ships today.");
+  const long = await fixture("threepart.md", "TideWane v1.2.0 ships today.");
+  assert.deepEqual(findingCodes(await auditFile(short, { patchHistory: new Set(["1.2.0"]) })), []);
+  assert.deepEqual(findingCodes(await auditFile(long, { patchHistory: new Set(["1.2"]) })), []);
+  // 1.2 is 1.2.0, not any 1.2.x: the mention is reported as written.
+  const r = await auditFile(short, { patchHistory: new Set(["1.2.2"]) });
+  const f = r.findings.find(x => x.code === "UNLISTED_VERSION");
+  assert.ok(f, JSON.stringify(r.findings));
+  assert.match(f.msg, /history: v1\.2\. /);
+});
+
+test("CLI accepts a version listed with a leading v in --patch-history (copy-tripwire-11)", async () => {
+  await fixture("vh-v.json", JSON.stringify({ patchHistory: [{ version: "v1.2.2" }] }));
+  await fixture("vh-listed.md", "TideWane v1.2.2 ships today.");
+  await fixture("vh-unlisted.md", "TideWane v9.9.9 ships today.");
+  const ok = runAudit("--patch-history", "vh-v.json", "vh-listed.md");
+  assert.equal(ok.code, 0, ok.out);
+  const bad = runAudit("--patch-history", "vh-v.json", "vh-unlisted.md");
+  assert.equal(bad.code, 2, bad.out);
+  assert.match(bad.out, /UNLISTED_VERSION/);
+});
+
 // --- File handling ---------------------------------------------------------
 
 test("EMPTY_FILE warns on 0 bytes", async () => {
