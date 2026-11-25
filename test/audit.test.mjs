@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -448,6 +448,76 @@ test("OVER_BULLETED still counts lines after whitespace is collapsed for phrases
   const fp = await fixture("bullets-wrapped.md", "- game\n- changer\n- three item\n- four item\n");
   const r = await auditFile(fp);
   assert.deepEqual(findingCodes(r), ["OVER_BULLETED"], JSON.stringify(r.findings));
+});
+
+// --- CLI arguments (copy-tripwire-10) --------------------------------------
+
+test("CLI accepts --patch-history=PATH (copy-tripwire-10)", async () => {
+  await fixture("cli-vh.json", JSON.stringify({ patchHistory: [{ version: "1.0.0" }] }));
+  await fixture("cli-unlisted.md", "TideWane v9.9.9 ships today.");
+  for (const args of [["--patch-history=cli-vh.json"], ["--patch-history", "cli-vh.json"]]) {
+    const r = runAudit(...args, "cli-unlisted.md");
+    assert.equal(r.code, 2, `${args}: ${r.out}`);
+    assert.match(r.out, /UNLISTED_VERSION/);
+  }
+});
+
+test("CLI accepts --max-em-dash=N and --max-bullets=N (copy-tripwire-10)", async () => {
+  // 1 em dash in 11 words (9.1 per 100) and 4 bullets in 12 words (33.3 per 100).
+  await fixture("cli-dash.md", "one two three four five six seven eight nine ten — done.");
+  await fixture("cli-bullets.md", "- one item here\n- two item here\n- three item here\n- four item here\n");
+  const codes = (...args) => JSON.parse(runAudit("--json", ...args).out).reports[0].findings.map(f => f.code);
+  assert.deepEqual(codes("cli-dash.md"), ["EM_DASH_DENSITY"]);
+  assert.deepEqual(codes("--max-em-dash=10", "cli-dash.md"), []);
+  assert.deepEqual(codes("--max-em-dash", "10", "cli-dash.md"), []);
+  assert.deepEqual(codes("cli-bullets.md"), ["OVER_BULLETED"]);
+  assert.deepEqual(codes("--max-bullets=50", "cli-bullets.md"), []);
+});
+
+test("CLI rejects an unknown option with exit 64 (copy-tripwire-10)", async () => {
+  await fixture("cli-ok.md", "Clean copy here.");
+  const r = runAudit("--bogus", "cli-ok.md");
+  assert.equal(r.code, 64, r.out);
+  assert.match(r.out, /unknown option --bogus/);
+});
+
+test("CLI rejects a missing or non-numeric option value with exit 64 (copy-tripwire-10)", async () => {
+  await fixture("cli-ok.md", "Clean copy here.");
+  const cases = [
+    ["--max-em-dash", "abc", "cli-ok.md"],
+    ["--max-em-dash=abc", "cli-ok.md"],
+    ["--max-bullets", "cli-ok.md"],          // the file name is not a number
+    ["--max-bullets=", "cli-ok.md"],
+    ["--max-bullets=Infinity", "cli-ok.md"],
+    ["cli-ok.md", "--max-bullets"],
+    ["cli-ok.md", "--patch-history"],
+    ["--patch-history=", "cli-ok.md"],
+    ["--patch-history", "--json", "cli-ok.md"],
+    ["--json=1", "cli-ok.md"],
+  ];
+  for (const args of cases) {
+    const r = runAudit(...args);
+    assert.equal(r.code, 64, `${args.join(" ")}: ${r.out}`);
+  }
+});
+
+test("CLI audits a file named like an option after a -- terminator (copy-tripwire-10)", async () => {
+  await fixture("cli-ok.md", "Clean copy here.");
+  await fixture("--promo.md", "We delve.");
+  const dropped = runAudit("cli-ok.md", "--promo.md");
+  assert.equal(dropped.code, 64, dropped.out);
+  const r = runAudit("cli-ok.md", "--", "--promo.md");
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /BANNED_PHRASE/);
+});
+
+test("a directory is AUDIT_FAIL, not an empty file (copy-tripwire-10)", async () => {
+  await mkdir(path.join(TMP, "adir", "sub"), { recursive: true });
+  await writeFile(path.join(TMP, "adir", "sub", "x.md"), "We delve.");
+  await assert.rejects(auditFile(path.join(TMP, "adir")), /not a regular file/);
+  const r = runAudit("adir");
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /CRITICAL\s+AUDIT_FAIL/);
 });
 
 // --- teardown --------------------------------------------------------------
