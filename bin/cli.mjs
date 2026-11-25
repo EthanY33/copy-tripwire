@@ -52,4 +52,4 @@ if (!script) {
 const child = spawn(process.execPath, [path.join(LIB, script), ...rest], {
   stdio: "inherit",
 });
-child.on("exit", (code) => process.exit(code ?? 0));
+child.on("exit", (code) => process.exit(code ?? 1));
