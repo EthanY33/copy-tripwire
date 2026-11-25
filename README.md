@@ -109,6 +109,7 @@ These don't always indicate a fabricated commitment, so they're WARN not CRITICA
 - HTML `<script>` and `<style>` bodies are stripped before phrase matching, so a banned phrase appearing in a CSS class name or JS string literal does NOT trip the audit.
 - Markdown fenced code blocks (`` ``` ``) and inline code (`` ` ``) are stripped, so code samples can use any phrase without tripping the prose audit.
 - HTML tags are stripped to prose before word-counting, so density metrics reflect what readers see, not the markup. A `<` that does not open a tag (`< 5 minutes`, `<3`) stays in the prose.
+- HTML entities are decoded (`&mdash;`, `&#8212;`, `&rsquo;` and the like) and a line break inside a phrase counts as a space, so entity-encoded or hard-wrapped copy is matched the way it reads.
 
 ## File handling
 

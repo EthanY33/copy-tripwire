@@ -358,6 +358,61 @@ test("doctype, processing instructions and closing tags are still stripped", asy
   assert.equal(r.wordCount, 2);
 });
 
+// --- Line wrapping and HTML entities (copy-tripwire-09) --------------------
+
+test("phrases split across a line break are matched (copy-tripwire-09)", async () => {
+  const fp = await fixture("wrapped.md",
+    "We dive deep\ninto the data and unlock the power\nof search. It is a game\nchanger. " +
+    "In the fast-paced\nworld of tools, more zones are coming\nsoon.\n");
+  const r = await auditFile(fp);
+  const banned = r.findings.filter(f => f.code === "BANNED_PHRASE").map(f => f.msg).join("\n");
+  for (const phrase of ["dive deep into", "unlock the power of", "game changer", "In the fast-paced world"]) {
+    assert.ok(banned.includes(`"${phrase}"`), `${phrase}: ${JSON.stringify(r.findings)}`);
+  }
+  const roadmap = r.findings.filter(f => f.code === "ROADMAP_PHRASE").map(f => f.msg).join("\n");
+  assert.ok(roadmap.includes('"coming soon"'), JSON.stringify(r.findings));
+});
+
+test("phrases wrapped inside indented HTML are matched (copy-tripwire-09)", async () => {
+  const fp = await fixture("wrapped.html",
+    "<p>\r\n    We dive deep\r\n    into the data. Try version\r\n    9.9.9 today.\r\n</p>\r\n");
+  const r = await auditFile(fp, { patchHistory: new Set(["1.0.0"]) });
+  assert.deepEqual(findingCodes(r), ["BANNED_PHRASE", "UNLISTED_VERSION"], JSON.stringify(r.findings));
+});
+
+test("EM_DASH_DENSITY counts entity-encoded em dashes (copy-tripwire-09)", async () => {
+  for (const [name, dash] of [["named", "&mdash;"], ["decimal", "&#8212;"], ["hex", "&#x2014;"]]) {
+    const fp = await fixture(`dash-${name}.html`,
+      `<p>one two ${dash} three four ${dash} five six ${dash} seven eight ${dash} nine ten ${dash} done</p>`);
+    const r = await auditFile(fp);
+    const dense = r.findings.find(f => f.code === "EM_DASH_DENSITY");
+    assert.ok(dense, `${name}: ${JSON.stringify(r.findings)}`);
+    assert.match(dense.msg, /^5 em-dashes in 11 words/);
+  }
+});
+
+test("ROADMAP_PHRASE sees an entity-encoded apostrophe (copy-tripwire-09)", async () => {
+  for (const [name, apos] of [["rsquo", "&rsquo;"], ["apos", "&apos;"], ["decimal", "&#39;"], ["hex", "&#x2019;"]]) {
+    const fp = await fixture(`apos-${name}.html`, `<p>We${apos}re working on a new boss.</p>`);
+    const r = await auditFile(fp);
+    assert.ok(findingCodes(r).includes("ROADMAP_PHRASE"), `${name}: ${JSON.stringify(r.findings)}`);
+  }
+});
+
+test("an escaped entity is text, not a second entity (copy-tripwire-09)", async () => {
+  // "&amp;mdash;" reads as the text "&mdash;"; unknown and out-of-range entities stay as written.
+  const fp = await fixture("escaped.html",
+    "<p>one &amp;mdash; two &amp;mdash; three &amp;mdash; four &bogus; &#99999999; &#0; five</p>");
+  const r = await auditFile(fp);
+  assert.deepEqual(findingCodes(r), [], JSON.stringify(r.findings));
+});
+
+test("OVER_BULLETED still counts lines after whitespace is collapsed for phrases", async () => {
+  const fp = await fixture("bullets-wrapped.md", "- game\n- changer\n- three item\n- four item\n");
+  const r = await auditFile(fp);
+  assert.deepEqual(findingCodes(r), ["OVER_BULLETED"], JSON.stringify(r.findings));
+});
+
 // --- teardown --------------------------------------------------------------
 
 test("cleanup", async () => { await rm(TMP, { recursive: true, force: true }); });
