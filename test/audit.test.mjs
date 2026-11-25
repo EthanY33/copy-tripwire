@@ -321,6 +321,43 @@ test("OVER_BULLETED still counts indented, CRLF and blank-line-separated bullets
   assert.match(over.msg, /^5 bullets in 10 words/);
 });
 
+// --- Markdown with embedded HTML (copy-tripwire-08) ------------------------
+
+test("code in Markdown is ignored when the file opens with HTML (copy-tripwire-08)", async () => {
+  const fp = await fixture("html-header.md",
+    '<p align="center"><img src="x.png" alt="logo"></p>\n\n# Title\n\nPlain intro text.\n\n' +
+    "```js\nconst slogan = 'unleash power';\n```\n\nCall `supercharge()` to start.\n");
+  const r = await auditFile(fp);
+  assert.ok(!findingCodes(r).includes("BANNED_PHRASE"), JSON.stringify(r.findings));
+});
+
+test("HTML embedded late in Markdown is stripped (copy-tripwire-08)", async () => {
+  // Past the first 2000 characters, where the content sniff never looked.
+  const words = Array.from({ length: 450 }, (_, i) => `word${i}`).join(" ");
+  const fp = await fixture("late-html.md",
+    words + '\n\n<div class="elevate game-changer">clean</div>\n<style>.tapestry{color:red}</style>\n');
+  const r = await auditFile(fp);
+  assert.ok(!findingCodes(r).includes("BANNED_PHRASE"), JSON.stringify(r.findings));
+  assert.equal(r.wordCount, 451);
+});
+
+test("a bare '<' in prose does not hide the text up to the next '>' (copy-tripwire-08)", async () => {
+  const body = "<p>hi</p>\n\nSetup takes < 5 minutes. We delve into the tapestry and supercharge everything.\n\n> a quote line\n";
+  for (const name of ["bare-lt.md", "bare-lt.html", "bare-lt.txt"]) {
+    const r = await auditFile(await fixture(name, body));
+    const banned = r.findings.filter(f => f.code === "BANNED_PHRASE");
+    assert.equal(banned.length, 3, `${name}: ${JSON.stringify(r.findings)}`);
+  }
+});
+
+test("doctype, processing instructions and closing tags are still stripped", async () => {
+  const fp = await fixture("doctype.html",
+    '<!DOCTYPE html>\n<?xml version="1.0"?>\n<html lang="en"><body><span class="elevate">one</span> <b>two</b></body></html>');
+  const r = await auditFile(fp);
+  assert.deepEqual(findingCodes(r), []);
+  assert.equal(r.wordCount, 2);
+});
+
 // --- teardown --------------------------------------------------------------
 
 test("cleanup", async () => { await rm(TMP, { recursive: true, force: true }); });

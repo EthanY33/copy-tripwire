@@ -108,13 +108,13 @@ These don't always indicate a fabricated commitment, so they're WARN not CRITICA
 
 - HTML `<script>` and `<style>` bodies are stripped before phrase matching, so a banned phrase appearing in a CSS class name or JS string literal does NOT trip the audit.
 - Markdown fenced code blocks (`` ``` ``) and inline code (`` ` ``) are stripped, so code samples can use any phrase without tripping the prose audit.
-- HTML tags are stripped to prose before word-counting, so density metrics reflect what readers see, not the markup.
+- HTML tags are stripped to prose before word-counting, so density metrics reflect what readers see, not the markup. A `<` that does not open a tag (`< 5 minutes`, `<3`) stays in the prose.
 
 ## File handling
 
 Auto-detected by extension and content sniffing:
 - `.html` / `.htm` → HTML extraction
-- `.md` / `.markdown` → Markdown extraction
+- `.md` / `.markdown` → Markdown extraction, then HTML extraction (for HTML embedded anywhere in the file)
 - everything else → plain text
 
 `.txt`, `.rtf`-as-text, and unknown extensions go through the plain-text path: no extraction, just direct phrase matching.
