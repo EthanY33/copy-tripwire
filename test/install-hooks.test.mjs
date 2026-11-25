@@ -10,6 +10,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
 
@@ -433,7 +434,8 @@ test("git runs the block: a failing gate blocks the commit without set -e, a pas
 });
 
 test("the CLI entry point installs the hook and exits 0, then 1 outside a repo", () => {
-  const cli = path.resolve(import.meta.dirname, "..", "bin", "cli.mjs");
+  // import.meta.dirname needs Node 20.11; the package supports Node 18.
+  const cli = fileURLToPath(new URL("../bin/cli.mjs", import.meta.url));
   const repo = makeRepo();
   const ok = spawnSync(process.execPath, [cli, "install-hooks"], { cwd: repo, encoding: "utf8" });
   assert.equal(ok.status, 0, ok.stderr);
