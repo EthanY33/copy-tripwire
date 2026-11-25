@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { auditFile } from "../lib/audit.mjs";
+import { auditFile, auditText } from "../lib/audit.mjs";
 
 const AUDIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "lib", "audit.mjs");
 
@@ -247,6 +247,78 @@ test("CLI exits 2 with AUDIT_FAIL on undecodable copy (copy-tripwire-05)", async
   const j = JSON.parse(runAudit("--json", "cli-u16nobom.md").out);
   assert.equal(j.totalCritical, 1);
   assert.equal(j.reports[0].findings[0].code, "AUDIT_FAIL");
+});
+
+// --- Linear-time extraction and size cap (copy-tripwire-12) ----------------
+
+// Each input made one of the old patterns rescan the rest of the file from
+// every start position: 200 KB took from seconds to over a minute.
+const SLOW_INPUTS = [
+  ["blank lines",                 "blank.txt",    () => "hello world" + "\n".repeat(200_000)],
+  ["bare '<' characters",         "lt.html",      () => "<".repeat(200_000)],
+  ["unclosed '<!--'",             "comment.html", () => "<!--".repeat(50_000)],
+  ["unclosed '<script>'",         "script.html",  () => "<script>".repeat(25_000)],
+  ["unclosed '<style>'",          "style.html",   () => "<style>".repeat(28_000)],
+  ["unterminated tag openers",    "open.html",    () => "<script <p <li ".repeat(13_000)],
+  ["unclosed '[a]('",             "link.md",      () => "[a](".repeat(50_000)],
+  ["unclosed '['",                "bracket.md",   () => "[".repeat(200_000)],
+];
+for (const [what, name, make] of SLOW_INPUTS) {
+  test(`200 KB of ${what} audits in under 1 s (copy-tripwire-12)`, async () => {
+    const fp = await fixture("slow-" + name, make());
+    const t0 = performance.now();
+    const r = await auditFile(fp);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 1000, `took ${Math.round(ms)} ms`);
+    assert.ok(!findingCodes(r).includes("AUDIT_FAIL"), JSON.stringify(r.findings));
+  });
+}
+
+test("a file over the 5 MB cap is AUDIT_FAIL (copy-tripwire-12)", async () => {
+  const fp = await fixture("huge.txt", "word ".repeat(1_100_000)); // 5.5 MB
+  const r = await auditFile(fp);
+  const fail = r.findings.find(f => f.code === "AUDIT_FAIL");
+  assert.ok(fail, JSON.stringify(r.findings));
+  assert.equal(fail.level, "CRITICAL");
+});
+
+test("auditText applies the 5 MB cap to already-loaded text (copy-tripwire-12)", () => {
+  const r = auditText("staged.txt", "word ".repeat(1_100_000));
+  assert.deepEqual(findingCodes(r), ["AUDIT_FAIL"]);
+  const ok = auditText("staged.txt", "word ".repeat(1_000_000)); // 5.0 MB decimal, under the cap
+  assert.deepEqual(findingCodes(ok), []);
+});
+
+test("script, style and comment bodies are still stripped, any case, more than one", async () => {
+  const fp = await fixture("blocks.html",
+    `<p>keep one</p><SCRIPT type="x">supercharge()</SCRIPT><p>We delve.</p>` +
+    `<style>.tapestry{color:red}</style><!-- unleash --><script>elevate()</script><p>end</p>`);
+  const r = await auditFile(fp);
+  const banned = r.findings.filter(f => f.code === "BANNED_PHRASE");
+  assert.equal(banned.length, 1, JSON.stringify(r.findings));
+  assert.match(banned[0].msg, /delve/);
+});
+
+test("an unclosed <script> does not hide the text after it", async () => {
+  const fp = await fixture("unclosed.html", `<p>hi</p><script>var a = 1;\n<p>We delve.</p>`);
+  const r = await auditFile(fp);
+  assert.ok(findingCodes(r).includes("BANNED_PHRASE"), JSON.stringify(r.findings));
+});
+
+test("Markdown link URLs are still dropped, including one with parentheses", async () => {
+  const fp = await fixture("links.md",
+    "Read [the notes](https://example.com/delve) and [the song](https://example.org/wiki/Elevate_(song)) today.");
+  const r = await auditFile(fp);
+  assert.ok(!findingCodes(r).includes("BANNED_PHRASE"), JSON.stringify(r.findings));
+});
+
+test("OVER_BULLETED still counts indented, CRLF and blank-line-separated bullets", async () => {
+  const fp = await fixture("bullets-mixed.md",
+    "- one item\r\n\r\n  - two item\r\n\r\n\t* three item\r\n+\tfour item\r\n\r\n\r\n- five item\r\n");
+  const r = await auditFile(fp);
+  const over = r.findings.find(f => f.code === "OVER_BULLETED");
+  assert.ok(over, JSON.stringify(r.findings));
+  assert.match(over.msg, /^5 bullets in 10 words/);
 });
 
 // --- teardown --------------------------------------------------------------

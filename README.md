@@ -69,7 +69,7 @@ Exit codes: `0` if no CRITICAL findings, `2` if any CRITICAL.
 | `OVER_BULLETED` | WARN | More bullet items per 100 words than threshold (default 8); counts both Markdown and HTML `<li>` |
 | `ROADMAP_PHRASE` | WARN | Future-tense roadmap markers ("coming soon", "we're working on", "in development", etc.) |
 | `EMPTY_FILE` | WARN | 0-byte file |
-| `AUDIT_FAIL` | CRITICAL | The file could not be audited (unreadable, or not decodable as text) |
+| `AUDIT_FAIL` | CRITICAL | The file could not be audited (unreadable, not decodable as text, or larger than 5 MB) |
 
 ### Banned phrase list
 
