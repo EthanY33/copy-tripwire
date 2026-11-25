@@ -464,7 +464,7 @@ test("CLI accepts --patch-history=PATH (copy-tripwire-10)", async () => {
 
 test("CLI accepts --max-em-dash=N and --max-bullets=N (copy-tripwire-10)", async () => {
   // 1 em dash in 11 words (9.1 per 100) and 4 bullets in 12 words (33.3 per 100).
-  await fixture("cli-dash.md", "one two three four five six seven eight nine ten — done.");
+  await fixture("cli-dash.md", "one two three four five six seven eight nine ten \u2014 done.");
   await fixture("cli-bullets.md", "- one item here\n- two item here\n- three item here\n- four item here\n");
   const codes = (...args) => JSON.parse(runAudit("--json", ...args).out).reports[0].findings.map(f => f.code);
   assert.deepEqual(codes("cli-dash.md"), ["EM_DASH_DENSITY"]);
