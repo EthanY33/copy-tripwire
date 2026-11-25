@@ -38,7 +38,7 @@ npx copy-tripwire audit --max-em-dash 5 --max-bullets 12 path/to/post.md
 # Audit everything currently staged under brand/goneidle-landing/
 npx copy-tripwire check
 
-# Install pre-commit hook (composes with trailer-tripwire / screenshot-tripwire if present)
+# Install pre-commit hook (shares the file with trailer-tripwire / screenshot-tripwire gates)
 npx copy-tripwire install-hooks
 
 # Short alias
@@ -126,9 +126,16 @@ Encoding: `audit` reads files as UTF-8 (a byte-order mark is ignored) and also d
 
 ## Pre-commit hook
 
-The `install-hooks` command writes a `.git/hooks/pre-commit` that audits any staged `.md` / `.html` / `.htm` / `.txt` files under `brand/goneidle-landing/` and blocks the commit on any CRITICAL finding.
+The `install-hooks` command writes a `pre-commit` hook into the directory git actually uses (`git rev-parse --git-path hooks`, so `core.hooksPath` and linked worktrees are honoured). The hook audits any staged `.md` / `.html` / `.htm` / `.txt` files under `brand/goneidle-landing/` and blocks the commit on any CRITICAL finding.
 
-The hook is marked with `# copy-tripwire:v1` and is **idempotent** (re-running the installer replaces its own hook). It also **composes with** `# trailer-tripwire:v1` and `# screenshot-tripwire:v1` if either is already present (all three run on commit). It **refuses to overwrite** an unrelated pre-commit hook.
+The gate is a managed block between `# copy-tripwire:v1` and `# copy-tripwire:v1 end`, running `npx --no -- copy-tripwire check || exit $?`. `--no` stops npx from downloading anything from the registry, and `|| exit $?` blocks the commit even when the hook has no `set -e`.
+
+Hooks from `trailer-tripwire` and `screenshot-tripwire` use the same block format, so all three gates live in one file and every installer rewrites only the lines between its own markers:
+
+- Re-running is **idempotent**: an equal block leaves the file byte-identical, and sibling blocks and your own lines are never touched.
+- A hook written by an older installer (solo or composed) is rewritten as one block per gate, in the order screenshot, trailer, copy. A `--dir` given to `trailer-tripwire` is carried over.
+- A hand-written hook that already mentions a tripwire gets the copy-tripwire block appended. If a line above it starts with `exec`, or is an unconditional `exit`, the installer warns that the block will never run.
+- A hook with no tripwire in it is **refused** and left unmodified. The message prints the three lines to add by hand.
 
 If a `brand/goneidle-landing/version.json` exists in the repo, the pre-commit hook reads it automatically and uses its `patchHistory[].version` (or `versions[]`, or root-array, or top-level `version`) for `UNLISTED_VERSION` detection.
 
