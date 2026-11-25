@@ -299,6 +299,8 @@ const SLOW_INPUTS = [
   ["unterminated tag openers",    "open.html",    () => "<script <p <li ".repeat(13_000)],
   ["unclosed '[a]('",             "link.md",      () => "[a](".repeat(50_000)],
   ["unclosed '['",                "bracket.md",   () => "[".repeat(200_000)],
+  ["quoted attributes holding '<'", "qattr.html", () => '<a x="<b" '.repeat(20_000)],
+  ["unclosed attribute quotes",   "qopen.html",   () => '<a x="'.repeat(33_000)],
 ];
 for (const [what, name, make] of SLOW_INPUTS) {
   test(`200 KB of ${what} audits in under 1 s (copy-tripwire-12)`, async () => {
@@ -308,6 +310,23 @@ for (const [what, name, make] of SLOW_INPUTS) {
     const ms = performance.now() - t0;
     assert.ok(ms < 1000, `took ${Math.round(ms)} ms`);
     assert.ok(!findingCodes(r).includes("AUDIT_FAIL"), JSON.stringify(r.findings));
+  });
+}
+
+// Tags with angle brackets in quoted attributes (copy-tripwire-08, copy-tripwire-12).
+const QUOTED_ANGLE_TAGS = [
+  ['<div x-show="count < 5" class="elevate">plain text here</div>', 3],
+  ["<div class='elevate' data-x='a > b < c'>plain text here</div>", 3],
+  ['<p>hi</p><button class="supercharge" onclick="if (a<b) go()">Go</button>', 2],
+  ['<a class="unleash" title="<em>Tip</em> text">plain link</a>', 2],
+];
+for (const ext of ["html", "md"]) {
+  test(`tags with angle brackets in quoted attributes are stripped in .${ext} (copy-tripwire-08, copy-tripwire-12)`, async () => {
+    for (const [i, [src, words]] of QUOTED_ANGLE_TAGS.entries()) {
+      const r = await auditFile(await fixture(`qangle${i}.${ext}`, src));
+      assert.deepEqual(findingCodes(r), [], src + " " + JSON.stringify(r.findings));
+      assert.equal(r.wordCount, words, src);
+    }
   });
 }
 
