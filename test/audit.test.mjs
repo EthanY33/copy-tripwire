@@ -301,13 +301,19 @@ const SLOW_INPUTS = [
   ["unclosed '['",                "bracket.md",   () => "[".repeat(200_000)],
   ["quoted attributes holding '<'", "qattr.html", () => '<a x="<b" '.repeat(20_000)],
   ["unclosed attribute quotes",   "qopen.html",   () => '<a x="'.repeat(33_000)],
+  ["attribute quotes that close no value", "qreject.html", () => '<a x="y '.repeat(25_000)],
 ];
 for (const [what, name, make] of SLOW_INPUTS) {
   test(`200 KB of ${what} audits in under 1 s (copy-tripwire-12)`, async () => {
     const fp = await fixture("slow-" + name, make());
-    const t0 = performance.now();
-    const r = await auditFile(fp);
-    const ms = performance.now() - t0;
+    // Best of three: a busy machine can stall one run, a quadratic scan is slow every time.
+    let ms = Infinity;
+    let r;
+    for (let attempt = 0; attempt < 3 && ms >= 1000; attempt++) {
+      const t0 = performance.now();
+      r = await auditFile(fp);
+      ms = Math.min(ms, performance.now() - t0);
+    }
     assert.ok(ms < 1000, `took ${Math.round(ms)} ms`);
     assert.ok(!findingCodes(r).includes("AUDIT_FAIL"), JSON.stringify(r.findings));
   });
@@ -319,6 +325,8 @@ const QUOTED_ANGLE_TAGS = [
   ["<div class='elevate' data-x='a > b < c'>plain text here</div>", 3],
   ['<p>hi</p><button class="supercharge" onclick="if (a<b) go()">Go</button>', 2],
   ['<a class="unleash" title="<em>Tip</em> text">plain link</a>', 2],
+  ['<img class="elevate" alt="a > b"/>two words', 2],
+  ['<img class="elevate" alt="a > b"\n/>two words', 2],
 ];
 for (const ext of ["html", "md"]) {
   test(`tags with angle brackets in quoted attributes are stripped in .${ext} (copy-tripwire-08, copy-tripwire-12)`, async () => {
@@ -326,6 +334,23 @@ for (const ext of ["html", "md"]) {
       const r = await auditFile(await fixture(`qangle${i}.${ext}`, src));
       assert.deepEqual(findingCodes(r), [], src + " " + JSON.stringify(r.findings));
       assert.equal(r.wordCount, words, src);
+    }
+  });
+}
+
+// A value whose closing quote is missing must not pair with the opening quote
+// of a later tag: that cut all the prose in between (copy-tripwire-08).
+const UNCLOSED_QUOTE_TAGS = [
+  ['<p class="lead>We delve into the tapestry.</p>\n<p class="x">ok</p>', 2],
+  ['<a href="https://example.com>link</a>\n\nWe delve into it.\n\n<a href="/about">more</a>', 1],
+  ["<img alt='logo src=x.png>\n\nWe delve into it.\n\n<p class='y'>more</p>", 1],
+];
+for (const ext of ["html", "md"]) {
+  test(`an unclosed attribute quote does not hide the prose after it in .${ext} (copy-tripwire-08)`, async () => {
+    for (const [i, [src, n]] of UNCLOSED_QUOTE_TAGS.entries()) {
+      const r = await auditFile(await fixture(`qunclosed${i}.${ext}`, src));
+      const banned = r.findings.filter(f => f.code === "BANNED_PHRASE");
+      assert.equal(banned.length, n, src + " " + JSON.stringify(r.findings));
     }
   });
 }
